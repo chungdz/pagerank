@@ -3,7 +3,7 @@ import json
 
 def parse_small_data():
     file = open("facebook_combined.txt")
-    result = open("facebook_conbined.json", 'w', encoding='utf-8')
+    result = open("facebook_combined.json", 'w', encoding='utf-8')
     node_dict = {}
     for i in range(4039):
         node_dict[str(i)] = {
