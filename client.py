@@ -20,6 +20,11 @@ s.connect((host, port))
 # 接收小于 1024 字节的数据
 msg = s.recv(1024)
 
+# send
+while True:
+    new_msg = 'huwei'.encode('utf-8')
+    s.send(new_msg)
+
 s.close()
 
 print (msg.decode('utf-8'))
