@@ -8,7 +8,9 @@ alpha = 0.85
 epsilon = 1e-10
 max_literation = 100
 
+local_finished = False
 remote_finished = False
+last_node_dict = {}
 
 class working_thread:
 
@@ -17,24 +19,24 @@ class working_thread:
         self.host = _host
         self.port = _port
 
-    def prepare():
+    def prepare(self):
         self.requester = SocketClient(self.host, self.port)
         print('Ready to work...')
 
-    def get_node(id):
+    def get_node(self,id):
         if id in self.node_dict:
             return self.node_dict[id]
         else:
             self.requester.send_request(id)
             return self.requester.get_response()
 
-    def pagerank():
-        N = len(node_dict)
+    def pagerank(self):
+        N = float(len(self.node_dict))
         iter = 0
         index = 0
         strt = ''
         for k in self.node_dict.keys():
-            self.node_dict[k]['rank'] = 1 / N
+            self.node_dict[k]['rank'] = 1.0 / N
             if index == 0:
                 strt = k
             index += 1
@@ -43,6 +45,7 @@ class working_thread:
 
         pre_result = self.node_dict[strt]['rank']
         while True:
+            local_finished = False
             remote_finished = False
             iter += 1
             print('iter %d'%iter)
@@ -51,8 +54,8 @@ class working_thread:
             for k in self.node_dict.keys():
                 sum = 0
                 for inlink in self.node_dict[k]['inlink']:
-                    tmpnode = get_node(inlink)
-                    sum += tmpnode['rank'] / tmpnode['degree']
+                    tmpnode = self.get_node(inlink)
+                    sum += float(tmpnode['rank']) / float(tmpnode['degree'])
                 self.node_dict[k]['rank'] = alpha * sum + (1 - alpha) / N
                 index += 1
                 print('key %d iter %d' % (index, iter))
@@ -71,14 +74,18 @@ class working_thread:
                 #print('write %d' % index)
                 index += 1
             result.close()
-            self.send_request('wait')
+            last_node_dict = self.node_dict
+            local_finished = True
+            self.requester.send_request('wait')
             while not remote_finished:
+                continue
         print('iteration num: ' + str(iter))
-        self.send_request('end')
+        self.requester.send_request('end')
 
-    def run():
-        prepare()
-        pagerank()
+    def run(self):
+        self.prepare()
+        input()
+        self.pagerank()
 
 
 class datasharing_thread:
@@ -87,23 +94,28 @@ class datasharing_thread:
         self.node_dict = copy.deepcopy(_node_dict)
         self.port = _port
 
-    def prepare():
+    def prepare(self):
         self.responser = SocketServer(self.port)
         self.responser.wait_connection()
 
-    def wait():
-        while true:
+    def wait(self):
+        while True:
             msg = self.responser.get_request()
-            if type(msg) == type(0):
-                if str(msg) in self.node_dict:
-                    self.responser.send_response(self.node_dict[str(msg)])
-                else:
-                    SimError("No node founded.")
+            if msg == 'wait' :
+                while not local_finished:
+                    continue
+                self.node_dict = copy.deepcopy(last_node_dict)
+                remote_finished = True
+
+            elif msg == 'end':
+                break
             else:
-                if msg == 'wait' :
-                    remote_finished = True
+                if msg in self.node_dict:
+                        print(self.node_dict[msg])
+                        self.responser.send_response(self.node_dict[msg])
                 else:
-                    break
-    def run():
-        prepare()
-        wait()
+                    print("No node founded.")
+                    SimError("No node founded.")
+    def run(self):
+        self.prepare()
+        self.wait()
