@@ -1,51 +1,48 @@
 
 import copy
+import threading
 
 from SocketServer import *
 from SocketClient import *
 
 alpha = 0.85
-epsilon = 1e-10
+epsilon = 1e-8
 max_literation = 100
 
-local_finished = False
+local_finished = threading.Lock()
 remote_finished = False
+flag = False
 last_node_dict = {}
 
 class working_thread:
 
     def __init__(self, _node_dict, _host, _port):
         self.node_dict = _node_dict
-        self.host = _host
+        self.requester = SocketClient(_host, _port)
         self.port = _port
-
-    def prepare(self):
-        self.requester = SocketClient(self.host, self.port)
         print('Ready to work...')
 
     def get_node(self,id):
         if id in self.node_dict:
             return self.node_dict[id]
         else:
+            #print("Asking " + id)
+            if type(id) != type('1234'):
+                raise AssertionError("!!!!!!!")
             self.requester.send_request(id)
             return self.requester.get_response()
 
     def pagerank(self):
+        global remote_finished
+        global flag
+        global last_node_dict
         N = float(len(self.node_dict))
         iter = 0
-        index = 0
-        strt = ''
-        for k in self.node_dict.keys():
-            self.node_dict[k]['rank'] = 1.0 / N
-            if index == 0:
-                strt = k
-            index += 1
-            print('init %d node, id: %d'%(index,int(k)))
-        print('Initicalizing nodes finished.')
-
-        pre_result = self.node_dict[strt]['rank']
+        sample = self.get_node('0')
+        pre_result = sample['rank']
         while True:
-            local_finished = False
+            local_finished.acquire()
+            flag = True
             remote_finished = False
             iter += 1
             print('iter %d'%iter)
@@ -58,34 +55,34 @@ class working_thread:
                     sum += float(tmpnode['rank']) / float(tmpnode['degree'])
                 self.node_dict[k]['rank'] = alpha * sum + (1 - alpha) / N
                 index += 1
-                print('key %d iter %d' % (index, iter))
+                #print('key %d iter %d' % (int(k), iter))
 
-            if abs(self.node_dict[strt]['rank'] - pre_result) < epsilon:
-                break
-
-            pre_result = self.node_dict[strt]['rank']
-
-            if iter > max_literation:
-                break
-
-            result = open('page_rank_'+strt+'.txt', 'w', encoding='utf-8')
+            result = open('../data/page_rank_'+str(self.port)+'.txt', 'w', encoding='utf-8')
             for k in self.node_dict.keys():
                 result.write(k + ':' + str(self.node_dict[k]['rank']) + '\n')
                 #print('write %d' % index)
                 index += 1
             result.close()
             last_node_dict = self.node_dict
-            local_finished = True
+
+            local_finished.release()
+
             self.requester.send_request('wait')
+
             while not remote_finished:
                 continue
+
+            sample = self.get_node('0')
+            if abs(sample['rank'] - pre_result) < epsilon:
+                break
+            print('iter %d delta %.*f' % (iter,10,float(abs(sample['rank'] - pre_result))))
+            pre_result = sample['rank']
+
+            if iter > max_literation:
+                break
+
         print('iteration num: ' + str(iter))
         self.requester.send_request('end')
-
-    def run(self):
-        self.prepare()
-        input()
-        self.pagerank()
 
 
 class datasharing_thread:
@@ -99,23 +96,25 @@ class datasharing_thread:
         self.responser.wait_connection()
 
     def wait(self):
+        global remote_finished
+        global flag
+        global last_node_dict
+        while not flag:
+            continue
         while True:
             msg = self.responser.get_request()
             if msg == 'wait' :
-                while not local_finished:
-                    continue
+                local_finished.acquire()
                 self.node_dict = copy.deepcopy(last_node_dict)
                 remote_finished = True
-
+                local_finished.release()
             elif msg == 'end':
                 break
             else:
-                if msg in self.node_dict:
-                        print(self.node_dict[msg])
-                        self.responser.send_response(self.node_dict[msg])
-                else:
-                    print("No node founded.")
-                    SimError("No node founded.")
+                if not msg in self.node_dict:
+                    raise AssertionError("Node "+msg+" not found.")
+                self.responser.send_response(self.node_dict[msg])
+
     def run(self):
         self.prepare()
         self.wait()

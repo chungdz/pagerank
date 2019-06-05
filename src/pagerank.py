@@ -23,14 +23,22 @@ def main():
     file = open(args.data, 'r', encoding='utf-8')
     node_dict = json.load(file)
     file.close()
+    # Initialize 'rank'
+    N = float(len(node_dict))
+    index = 0
+    for k in node_dict.keys():
+        node_dict[k]['rank'] = 1.0 / N
+        index += 1
+        print('init %d node, id: %d'%(index,int(k)))
+    print('Initicalizing nodes finished.')
 
-    wt = working_thread(node_dict, args.whost, args.wport)
     dst = datasharing_thread(node_dict, args.sport)
-
     _thread.start_new_thread ( dst.run, () )
+
     print("Ready to connect to another process...")
     input()
-    wt.run()
+    wt = working_thread(node_dict, args.whost, args.wport)
+    wt.pagerank()
 
 
 if __name__ == '__main__':
