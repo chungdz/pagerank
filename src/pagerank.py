@@ -6,7 +6,8 @@ import _thread
 alpha = 0.85
 epsilon = 1e-10
 
-from src.Threads import *
+#from src.Threads import *
+from Threads import *
 
 def main():
     local_host = socket.gethostname()

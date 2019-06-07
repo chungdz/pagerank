@@ -2,9 +2,13 @@
 import copy
 import threading
 
-from src.SocketServer import *
-from src.SocketClient import *
-from src.LimitedOrderedDict import LimitedOrderedDict
+#from src.SocketServer import *
+#from src.SocketClient import *
+#from src.LimitedOrderedDict import LimitedOrderedDict
+
+from SocketServer import *
+from SocketClient import *
+from LimitedOrderedDict import LimitedOrderedDict
 
 alpha = 0.85
 epsilon = 1e-8
@@ -126,7 +130,9 @@ class datasharing_thread:
             else:
                 if not msg in self.node_dict:
                     raise AssertionError("Node "+msg+" not found.")
-                self.responser.send_response(self.node_dict[msg])
+                return_node = {'degree':self.node_dict[msg]['degree'], \
+                                'rank':self.node_dict[msg]['rank']}
+                self.responser.send_response(return_node)
 
     def run(self):
         self.prepare()
