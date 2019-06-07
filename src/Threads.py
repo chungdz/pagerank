@@ -2,44 +2,57 @@
 import copy
 import threading
 
-from SocketServer import *
-from SocketClient import *
+from src.SocketServer import *
+from src.SocketClient import *
+from src.LimitedOrderedDict import LimitedOrderedDict
 
 alpha = 0.85
 epsilon = 1e-8
 max_literation = 100
+buffer_size = 300
 
 local_finished = threading.Lock()
 remote_finished = False
 flag = False
 last_node_dict = {}
 
+
 class working_thread:
 
-    def __init__(self, _node_dict, _host, _port):
+    def __init__(self, _node_dict, _host, _port, label, N):
         self.node_dict = _node_dict
         self.requester = SocketClient(_host, _port)
         self.port = _port
+        self.label = label
+        # self.buffer = LimitedOrderedDict(buffer_size)
+        self.buffer = {}
+        self.N = N
         print('Ready to work...')
 
-    def get_node(self,id):
+    def get_node_rank(self, id):
         if id in self.node_dict:
-            return self.node_dict[id]
+            rank_val = self.node_dict[id]['rank'] / self.node_dict[id]['degree']
+            return rank_val
         else:
             #print("Asking " + id)
+            # if id in self.buffer.keys():
+            #     return self.buffer[id]
+
             if type(id) != type('1234'):
                 raise AssertionError("!!!!!!!")
             self.requester.send_request(id)
-            return self.requester.get_response()
+            single_dict = self.requester.get_response()
+            rank_val = float(single_dict['rank']) / float(single_dict['degree'])
+            # self.buffer[id] = rank_val
+            # self.buffer._check_size_limit()
+            return rank_val
 
     def pagerank(self):
         global remote_finished
         global flag
         global last_node_dict
-        N = float(len(self.node_dict))
         iter = 0
-        sample = self.get_node('0')
-        pre_result = sample['rank']
+        pre_result = self.get_node_rank('0')
         while True:
             local_finished.acquire()
             flag = True
@@ -51,13 +64,13 @@ class working_thread:
             for k in self.node_dict.keys():
                 sum = 0
                 for inlink in self.node_dict[k]['inlink']:
-                    tmpnode = self.get_node(inlink)
-                    sum += float(tmpnode['rank']) / float(tmpnode['degree'])
-                self.node_dict[k]['rank'] = alpha * sum + (1 - alpha) / N
+                    sum += self.get_node_rank(inlink)
+                self.node_dict[k]['rank'] = alpha * sum + (1 - alpha) / self.N
                 index += 1
                 #print('key %d iter %d' % (int(k), iter))
 
-            result = open('../data/page_rank_'+str(self.port)+'.txt', 'w', encoding='utf-8')
+            self.buffer.clear()
+            result = open('../data/page_rank_' + str(self.label) + '.txt', 'w', encoding='utf-8')
             for k in self.node_dict.keys():
                 result.write(k + ':' + str(self.node_dict[k]['rank']) + '\n')
                 #print('write %d' % index)
@@ -72,11 +85,11 @@ class working_thread:
             while not remote_finished:
                 continue
 
-            sample = self.get_node('0')
-            if abs(sample['rank'] - pre_result) < epsilon:
+            sample = self.get_node_rank('0')
+            if abs(sample - pre_result) < epsilon:
                 break
-            print('iter %d delta %.*f' % (iter,10,float(abs(sample['rank'] - pre_result))))
-            pre_result = sample['rank']
+            print('iter %d delta %.*f' % (iter,10,float(abs(sample - pre_result))))
+            pre_result = sample
 
             if iter > max_literation:
                 break
