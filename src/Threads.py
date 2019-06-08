@@ -6,9 +6,9 @@ import threading
 #from src.SocketClient import *
 #from src.LimitedOrderedDict import LimitedOrderedDict
 
-from SocketServer import *
-from SocketClient import *
-from LimitedOrderedDict import LimitedOrderedDict
+from src.SocketServer import *
+from src.SocketClient import *
+from src.node_buffer import LimitedOrderedDict
 
 alpha = 0.85
 epsilon = 1e-8
@@ -39,15 +39,15 @@ class working_thread:
             return rank_val
         else:
             #print("Asking " + id)
-            # if id in self.buffer.keys():
-            #     return self.buffer[id]
+            if id in self.buffer.keys():
+                return self.buffer[id]
 
             if type(id) != type('1234'):
                 raise AssertionError("!!!!!!!")
             self.requester.send_request(id)
             single_dict = self.requester.get_response()
             rank_val = float(single_dict['rank']) / float(single_dict['degree'])
-            # self.buffer[id] = rank_val
+            self.buffer[id] = rank_val
             # self.buffer._check_size_limit()
             return rank_val
 
@@ -56,7 +56,7 @@ class working_thread:
         global flag
         global last_node_dict
         iter = 0
-        pre_result = self.get_node_rank('0')
+        pre_result = self.get_node_rank('1')
         while True:
             local_finished.acquire()
             flag = True
@@ -67,6 +67,8 @@ class working_thread:
             #for k in node_dict.keys():
             for k in self.node_dict.keys():
                 sum = 0
+                if len(self.node_dict[k]['inlink']) == 0:
+                    continue
                 for inlink in self.node_dict[k]['inlink']:
                     sum += self.get_node_rank(inlink)
                 self.node_dict[k]['rank'] = alpha * sum + (1 - alpha) / self.N
@@ -89,10 +91,10 @@ class working_thread:
             while not remote_finished:
                 continue
 
-            sample = self.get_node_rank('0')
+            sample = self.get_node_rank('1')
+            print('iter %d delta %.*f' % (iter, 10, float(abs(sample - pre_result))))
             if abs(sample - pre_result) < epsilon:
                 break
-            print('iter %d delta %.*f' % (iter,10,float(abs(sample - pre_result))))
             pre_result = sample
 
             if iter > max_literation:
@@ -120,7 +122,7 @@ class datasharing_thread:
             continue
         while True:
             msg = self.responser.get_request()
-            if msg == 'wait' :
+            if msg == 'wait':
                 local_finished.acquire()
                 self.node_dict = copy.deepcopy(last_node_dict)
                 remote_finished = True
@@ -130,8 +132,10 @@ class datasharing_thread:
             else:
                 if not msg in self.node_dict:
                     raise AssertionError("Node "+msg+" not found.")
-                return_node = {'degree':self.node_dict[msg]['degree'], \
-                                'rank':self.node_dict[msg]['rank']}
+                return_node = {
+                    'degree': self.node_dict[msg]['degree'],
+                    'rank': self.node_dict[msg]['rank']
+                }
                 self.responser.send_response(return_node)
 
     def run(self):
