@@ -7,7 +7,7 @@ alpha = 0.85
 epsilon = 1e-10
 
 #from src.Threads import *
-from Threads import *
+from src.Threads import *
 
 def main():
     local_host = socket.gethostname()
@@ -18,7 +18,7 @@ def main():
     parser.add_argument('-wh', '--whost', type=str, help='Host your working thread try to contact.', default = local_host)
     parser.add_argument('-wp', '--wport', type=int, help='Port your working thread try to contact.')
     parser.add_argument('-chp', '--checkpoint', type=int, help='whether to use saved page rank', default=0)
-    parser.add_argument('-num', '--node_number', type=float, default=4038)
+    parser.add_argument('-num', '--node_number', type=float, default=548600)
 
     args = parser.parse_args()
 
