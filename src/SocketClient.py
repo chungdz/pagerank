@@ -16,10 +16,10 @@ class SocketClient:
 
     def send_request(self, content):
         #print(content)
-        self.sckt.send(content.encode('utf-8'))
+        self.sckt.sendall(json.dumps(content).encode('utf-8'))
 
     def get_response(self):
-        res = self.sckt.recv(10000)
+        res = self.sckt.recv(99999)
         #print(res)
         return json.loads(res.decode())
 

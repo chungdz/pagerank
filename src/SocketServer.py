@@ -24,14 +24,15 @@ class SocketServer:
         return
 
     def get_request(self):
-        req = self.client.recv(1024)
+        req = self.client.recv(99999)
         #print(req)
         #print(req.decode())
-        return req.decode()
+
+        return json.loads(req.decode())
 
     def send_response(self, content):
         res = json.dumps(content).encode('utf-8')
-        return self.client.send(res)
+        return self.client.sendall(res)
 
     def __del__(self):
         self.client.close()

@@ -33,6 +33,26 @@ class working_thread:
         self.N = N
         print('Ready to work...')
 
+    def get_nodes_rank(self, id_array):
+        unsaved = []
+        sum = 0
+        for node_id in id_array:
+            if node_id in self.node_dict:
+                sum += self.node_dict[node_id]['rank'] / self.node_dict[node_id]['degree']
+            elif node_id in self.buffer.keys():
+                sum += self.buffer[node_id]
+            else:
+                unsaved.append(node_id)
+        if len(unsaved) == 0:
+            return sum
+        self.requester.send_request(unsaved)
+        dict_array = self.requester.get_response()
+        for single_dict in dict_array:
+            val = float(single_dict['rank']) / float(single_dict['degree'])
+            sum += val
+            self.buffer[single_dict['id']] = val
+        return sum
+
     def get_node_rank(self, id):
         if id in self.node_dict:
             rank_val = self.node_dict[id]['rank'] / self.node_dict[id]['degree']
@@ -56,7 +76,7 @@ class working_thread:
         global flag
         global last_node_dict
         iter = 0
-        pre_result = self.get_node_rank('1')
+        pre_result = self.get_nodes_rank(['1'])
         while True:
             local_finished.acquire()
             flag = True
@@ -66,11 +86,10 @@ class working_thread:
             index = 0
             #for k in node_dict.keys():
             for k in self.node_dict.keys():
-                sum = 0
                 if len(self.node_dict[k]['inlink']) == 0:
                     continue
-                for inlink in self.node_dict[k]['inlink']:
-                    sum += self.get_node_rank(inlink)
+                # for inlink in self.node_dict[k]['inlink']:
+                sum = self.get_nodes_rank(self.node_dict[k]['inlink'])
                 self.node_dict[k]['rank'] = alpha * sum + (1 - alpha) / self.N
                 index += 1
                 #print('key %d iter %d' % (int(k), iter))
@@ -91,7 +110,7 @@ class working_thread:
             while not remote_finished:
                 continue
 
-            sample = self.get_node_rank('1')
+            sample = self.get_nodes_rank(['1'])
             print('iter %d delta %.*f' % (iter, 10, float(abs(sample - pre_result))))
             if abs(sample - pre_result) < epsilon:
                 break
@@ -122,6 +141,7 @@ class datasharing_thread:
             continue
         while True:
             msg = self.responser.get_request()
+            # print('get request')
             if msg == 'wait':
                 local_finished.acquire()
                 self.node_dict = copy.deepcopy(last_node_dict)
@@ -130,13 +150,18 @@ class datasharing_thread:
             elif msg == 'end':
                 break
             else:
-                if not msg in self.node_dict:
-                    raise AssertionError("Node "+msg+" not found.")
-                return_node = {
-                    'degree': self.node_dict[msg]['degree'],
-                    'rank': self.node_dict[msg]['rank']
-                }
-                self.responser.send_response(return_node)
+                # print('return')
+                new_msg = []
+                for node_id in msg:
+                    if node_id not in self.node_dict.keys():
+                        raise AssertionError("Node " + node_id +" not found.")
+                    return_node = {
+                        'degree': self.node_dict[node_id]['degree'],
+                        'rank': self.node_dict[node_id]['rank'],
+                        'id': node_id
+                    }
+                    new_msg.append(return_node)
+                self.responser.send_response(new_msg)
 
     def run(self):
         self.prepare()
