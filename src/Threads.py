@@ -6,9 +6,9 @@ import threading
 #from src.SocketClient import *
 #from src.LimitedOrderedDict import LimitedOrderedDict
 
-from src.SocketServer import *
-from src.SocketClient import *
-from src.node_buffer import LimitedOrderedDict
+from SocketServer import *
+from SocketClient import *
+from node_buffer import LimitedOrderedDict
 
 alpha = 0.85
 epsilon = 1e-8
